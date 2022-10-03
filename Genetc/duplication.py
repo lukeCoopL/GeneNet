@@ -23,6 +23,7 @@ import random as rd
 #Network evolution models
 
 def duplicate_genes(G,genes,iteration=0,self_loops=True):
+  
   mapping = {}
   ##print(iteration)
   for i in genes:
@@ -31,32 +32,67 @@ def duplicate_genes(G,genes,iteration=0,self_loops=True):
     
   G_sub=G.subgraph(genes)
   G_sub=nx.relabel_nodes(G_sub,mapping)
-  G_dup=nx.compose(G,G_sub)
+
+  for i in G_sub.nodes():
+    G.add_node(i)
+  #G_dup=nx.compose(G,G_sub)
 
   
   for j in genes:
       
     for i in list(G.predecessors(j)):
       if i!=j:  
-        G_dup.add_edge(i,str(j)+"_"+str(iteration))
+        G.add_edge(i,str(j)+"_"+str(iteration))
       
     for i in list(G.successors(j)):
       if i!=j:
-        G_dup.add_edge(str(j)+"_"+str(iteration),i)
+        G.add_edge(str(j)+"_"+str(iteration),i)
     if self_loops:
-      if (j,j) in G_dup.edges():
-        G_dup.add_edge(str(j)+"_"+str(iteration),str(j)+"_"+str(iteration))
-        G_dup.add_edge(j,str(j)+"_"+str(iteration))
-        G_dup.add_edge(str(j)+"_"+str(iteration),j)
+      if (j,j) in G.edges():
+        G.add_edge(str(j)+"_"+str(iteration),str(j)+"_"+str(iteration))
+        G.add_edge(j,str(j)+"_"+str(iteration))
+        G.add_edge(str(j)+"_"+str(iteration),j)
   
-  return G_dup
+  return G
+def PED_PEA_isolates_corrected(G_n,r,q,steps,iteration=0,self_pair_type='self_loop',duplication_mutation_rate=0.5):
+  G=copy.deepcopy(G_n)
+  
+  m=0
+  while m<steps:
+    G=PED_PEA(G,r,q,iteration+m,self_pair_type,copyG=False,duplicate_mutation_rate=duplication_mutation_rate)
+    node_remover=list(nx.isolates(G))
+    if node_remover==[]:
+      m=m+1
+    else:
+      G.remove_nodes_from(node_remover)
+  
+  print(steps)
+  return G
 
-def PED_PEA(G,r,q,iteration=0,self_pair_type="self_loop"):
+def PED_PEA_isolates_included(G_n,r,q,steps,iteration=0,self_pair_type='self_loop',duplication_mutation_rate=0.5):
+  G=copy.deepcopy(G_n)
+  
+  m=0
+  while m<steps:
+    G=PED_PEA(G,r,q,iteration+m,self_pair_type,copyG=False,duplicate_mutation_rate=duplication_mutation_rate)
+    m=m+1
+    
+  
+  
+  return G
+
+def PED_PEA(G_n,r,q,iteration=0,self_pair_type="self_loop",copyG=True,duplicate_mutation_rate=0.5,edge_add_type='standard',edge_add_TF_only=False):
   ###print(iteration)
-  G=copy.deepcopy(G)
+  
+  if copyG==True:
+    G=copy.deepcopy(G_n)
+  else:
+    G=G_n
+  
   n=len(list(G.nodes))
   nodeNum=n-1
-  rando=rd.randrange(0,nodeNum+1)
+  #rando=rd.randrange(0,nodeNum+1)
+  rando= int(n * random.random())
   nodeList=list(G.nodes)
   ###print(rando,nodeNum,round(nodeNum*rando))
   dupNode=nodeList[rando]
@@ -65,111 +101,353 @@ def PED_PEA(G,r,q,iteration=0,self_pair_type="self_loop"):
   G=duplicate_genes(G,[dupNode],iteration=iteration)
   
   
-  parents=copy.deepcopy(list(G.predecessors(dupNode)))
-  children=copy.deepcopy(list(G.successors(dupNode)))
-  parentsCopy=set(copy.deepcopy(parents))
-  childrenCopy=set(copy.deepcopy(children))
- 
+  parents=list(G.predecessors(dupNode))
+  children=list(G.successors(dupNode))
+  parentsCopy=set(parents)
+  childrenCopy=set(children)
+  nodeList=list(G.nodes)
+  parentListRemoved=set(list(nodeList))-parentsCopy
+  childListRemoved=set(list(nodeList))-childrenCopy
   theRemovalists=childrenCopy.union(set(parentsCopy))
   nodeListRemoved=set(list(nodeList))-theRemovalists
-  
-  if self_pair_type=="self_loop":
-    if (dupNode,dupNode) in G.edges():
-      rando=np.random.rand(1)  
-      if rando <= q:
-        rando=np.random.rand(1)
-          
-        if rando >0.5:
-          G.remove_edge(str(dupNode)+"_"+str(iteration),str(dupNode)+"_"+str(iteration))
-        else:
-          G.remove_edge(dupNode,dupNode)
-    if (str(dupNode)+"_"+str(iteration),dupNode) in G.edges():
-      rando=np.random.rand(1)  
-      if rando <= q:
-        rando=np.random.rand(1)
-        if rando >0.5:
-          G.remove_edge(str(dupNode)+"_"+str(iteration),dupNode)
-        else:
-          G.remove_edge(dupNode,str(dupNode)+"_"+str(iteration))
-  if self_pair_type=="cross_edge":  
-    if (dupNode,dupNode) in G.edges():
-      rando=np.random.rand(1)  
-      if rando <= q:
-        rando=np.random.rand(1)
-          
-        if rando >0.5:
-          G.remove_edge(str(dupNode)+"_"+str(iteration),dupNode)
-        else:
-          G.remove_edge(dupNode,dupNode)
-    if (str(dupNode)+"_"+str(iteration),str(dupNode)+"_"+str(iteration)) in G.edges():
-      rando=np.random.rand(1)  
-      if rando <= q:
-        rando=np.random.rand(1)
-        if rando >0.5:
-          G.remove_edge(str(dupNode)+"_"+str(iteration),str(dupNode)+"_"+str(iteration))
-        else:
-          G.remove_edge(dupNode,str(dupNode)+"_"+str(iteration))
-  for i in parents:
-    if i!=dupNode and i!= str(dupNode)+"_"+str(iteration):
-      rando=np.random.rand(1)
-      if rando <= q:
-        rando=np.random.rand(1)
-        if rando >0.5:
-          G.remove_edge(i,str(dupNode)+"_"+str(iteration))
-        else:
-          G.remove_edge(i,dupNode)
-  children=copy.deepcopy(list(G.successors(dupNode)))
-  for i in children:
-    
-    if i!= dupNode and i!= str(dupNode)+"_"+str(iteration):
-      rando=np.random.rand(1)
+  if q>0:
+    if self_pair_type=="self_loop":
+      if (dupNode,dupNode) in G.edges():
+        rando=random.random()  
+        if rando <= q:
+          rando=random.random()
+            
+          if rando >0.5:
+            G.remove_edge(str(dupNode)+"_"+str(iteration),str(dupNode)+"_"+str(iteration))
+          else:
+            G.remove_edge(dupNode,dupNode)
+      if (str(dupNode)+"_"+str(iteration),dupNode) in G.edges():
+        rando=random.random()
+        if rando <= q:
+          rando=random.random()
+          if rando >0.5:
+            G.remove_edge(str(dupNode)+"_"+str(iteration),dupNode)
+          else:
+            G.remove_edge(dupNode,str(dupNode)+"_"+str(iteration))
+    if self_pair_type=="cross_edge":  
+      if (dupNode,dupNode) in G.edges():
+        rando=random.random()
+        if rando <= q:
+          rando=random.random()
+            
+          if rando >0.5:
+            G.remove_edge(str(dupNode)+"_"+str(iteration),dupNode)
+          else:
+            G.remove_edge(dupNode,dupNode)
+      if (str(dupNode)+"_"+str(iteration),str(dupNode)+"_"+str(iteration)) in G.edges():
+        rando=random.random()
+        if rando <= q:
+          rando=random.random()
+          if rando >0.5:
+            G.remove_edge(str(dupNode)+"_"+str(iteration),str(dupNode)+"_"+str(iteration))
+          else:
+            G.remove_edge(dupNode,str(dupNode)+"_"+str(iteration))
+    for i in parents:
+      if i!=dupNode and i!= str(dupNode)+"_"+str(iteration):
+        rando=random.random()
+        if rando <= q:
+          rando=random.random()
+          if rando >1-duplicate_mutation_rate:
+            G.remove_edge(i,str(dupNode)+"_"+str(iteration))
+          else:
+            G.remove_edge(i,dupNode)
+    children=copy.deepcopy(list(G.successors(dupNode)))
+    for i in children:
       
-      if rando <= q:
-        rando=np.random.rand(1)
+      if i!= dupNode and i!= str(dupNode)+"_"+str(iteration):
+        rando=random.random()
         
-        if rando >0.5:
-          G.remove_edge(str(dupNode)+"_"+str(iteration),i)
-        else:
-          G.remove_edge(dupNode,i)
-  for i in nodeListRemoved:
-    if i ==dupNode or i==str(dupNode)+"_"+str(iteration):
-      if self_pair_type=="self_loop":
-        rando = np.random.rand(1)
-        if i==dupNode:
-          if rando<r/nodeNum:
-            rando = np.random.rand(1)
-            if rando>0.5:
-              G.add_edge(str(dupNode)+"_"+str(iteration),str(dupNode)+"_"+str(iteration))
-            else:
-              G.add_edge(dupNode,dupNode)
-        
-        rando = np.random.rand(1)
-        if i==str(dupNode)+"_"+str(iteration):
-          if rando<r/nodeNum:
-            rando = np.random.rand(1)
-            if rando>0.5:
-              G.add_edge(str(dupNode)+"_"+str(iteration),dupNode)
-            else:
-              G.add_edge(dupNode,str(dupNode)+"_"+str(iteration))
-      else: 
-        raise TypeError("Cross-edge type Not yet implemented")
-    else:  
-      rando = np.random.rand(1)
-      if rando<r/nodeNum:
-        rando=np.random.rand(1)
-        if rando>0.5:
-          G.add_edge(str(dupNode)+"_"+str(iteration),i)
-        else:
-          G.add_edge(dupNode,i)
+        if rando <= q:
+          rando=random.random()
+          
+          if rando >1-duplicate_mutation_rate:
+            G.remove_edge(str(dupNode)+"_"+str(iteration),i)
+          else:
+            G.remove_edge(dupNode,i)
+  if r>0:
+    if edge_add_TF_only==False:
+      if edge_add_type=='standard':
+        for i in childListRemoved:
+          
+          if i ==dupNode or i==str(dupNode)+"_"+str(iteration):
+            if self_pair_type=="self_loop":
+              rando = random.random()
+              if i==dupNode:
+                if rando<r/nodeNum:
+                  rando = random.random()
+                  if rando>0.5:
+                    G.add_edge(str(dupNode)+"_"+str(iteration),str(dupNode)+"_"+str(iteration))
+                  else:
+                    G.add_edge(dupNode,dupNode)
+              
+              rando = random.random()
+              if i==str(dupNode)+"_"+str(iteration):
+                if rando<r/nodeNum:
+                  rando = random.random()
+                  if rando>0.5:
+                    G.add_edge(str(dupNode)+"_"+str(iteration),dupNode)
+                  else:
+                    G.add_edge(dupNode,str(dupNode)+"_"+str(iteration))
+            else: 
+              raise TypeError("Cross-edge type Not yet implemented")
+          else:  
+            rando = random.random()
+            if rando<r/nodeNum:
+              rando=random.random()
+              if rando>0.5:
+                G.add_edge(str(dupNode)+"_"+str(iteration),i)
+              else:
+                G.add_edge(dupNode,i)
+
+        for i in parentListRemoved:
+          
+          if i !=dupNode and i!=str(dupNode)+"_"+str(iteration):
+            
+            rando = random.random()
+            if rando<r/nodeNum:
+              rando=random.random()
+              if rando>0.5:
+                G.add_edge(i,str(dupNode)+"_"+str(iteration))
+              else:
+                G.add_edge(i,dupNode)
 
 
-      rando = np.random.rand(1)
-      if rando<r/nodeNum:
-        rando=np.random.rand(1)
-        if rando>0.5:
-          G.add_edge(i,str(dupNode)+"_"+str(iteration))
-        else:
-          G.add_edge(i,dupNode)
+      elif edge_add_type=='uniform':
+        for i in childListRemoved:
+          
+          if i ==dupNode or i==str(dupNode)+"_"+str(iteration):
+            if self_pair_type=="self_loop":
+              rando = random.random()
+              if i==dupNode:
+                if rando<r/(2*nodeNum-G.degree(i)+3):
+                  rando = random.random()
+                  if rando>0.5:
+                    G.add_edge(str(dupNode)+"_"+str(iteration),str(dupNode)+"_"+str(iteration))
+                  else:
+                    G.add_edge(dupNode,dupNode)
+              
+              rando = random.random()
+              if i==str(dupNode)+"_"+str(iteration):
+                if rando<r/(2*nodeNum-G.degree(i)+3):
+                  rando = random.random()
+                  if rando>0.5:
+                    G.add_edge(str(dupNode)+"_"+str(iteration),dupNode)
+                  else:
+                    G.add_edge(dupNode,str(dupNode)+"_"+str(iteration))
+            else: 
+              raise TypeError("Cross-edge type Not yet implemented")
+          else:  
+            rando = random.random()
+            if rando<r/(2*nodeNum-G.degree(i)+3):
+              rando=random.random()
+              if rando>0.5:
+                G.add_edge(str(dupNode)+"_"+str(iteration),i)
+              else:
+                G.add_edge(dupNode,i)
+
+        for i in parentListRemoved:
+          
+          if i !=dupNode and i!=str(dupNode)+"_"+str(iteration):
+            
+            rando = random.random()
+            if rando<r/(2*nodeNum-G.degree(i)+3):
+              rando=random.random()
+              if rando>0.5:
+                G.add_edge(i,str(dupNode)+"_"+str(iteration))
+              else:
+                G.add_edge(i,dupNode)
+
+      elif edge_add_type=='preferential':
+        for i in childListRemoved:
+          
+          if i ==dupNode or i==str(dupNode)+"_"+str(iteration):
+            if self_pair_type=="self_loop":
+              rando = random.random()
+              if i==dupNode:
+                if rando<r*G.degree(i)/(2*nodeNum-G.degree(i)+3):
+                  rando = random.random()
+                  if rando>0.5:
+                    G.add_edge(str(dupNode)+"_"+str(iteration),str(dupNode)+"_"+str(iteration))
+                  else:
+                    G.add_edge(dupNode,dupNode)
+              
+              rando = random.random()
+              if i==str(dupNode)+"_"+str(iteration):
+                if rando<r*G.degree(i)/(2*nodeNum-G.degree(i)+3):
+                  rando = random.random()
+                  if rando>0.5:
+                    G.add_edge(str(dupNode)+"_"+str(iteration),dupNode)
+                  else:
+                    G.add_edge(dupNode,str(dupNode)+"_"+str(iteration))
+            else: 
+              raise TypeError("Cross-edge type Not yet implemented")
+          else:  
+            rando = random.random()
+            if rando<r*G.degree(i)/(2*nodeNum-G.degree(i)+3):
+              rando=random.random()
+              if rando>0.5:
+                G.add_edge(str(dupNode)+"_"+str(iteration),i)
+              else:
+                G.add_edge(dupNode,i)
+
+        for i in parentListRemoved:
+          
+          if i !=dupNode and i!=str(dupNode)+"_"+str(iteration):
+            
+            rando = random.random()
+            if rando<r*G.degree(i)/(2*nodeNum-G.degree(i)+3):
+              rando=random.random()
+              if rando>0.5:
+                G.add_edge(i,str(dupNode)+"_"+str(iteration))
+              else:
+                G.add_edge(i,dupNode)
+      else:
+        raise TypeError("Edge addition type not implemented. Please choose from standard, unfirom, or preferential")
+    else:
+      
+      if edge_add_type=='standard':
+        for i in childListRemoved:
+          if G.out_degree(dupNode)!=0:
+            if i ==dupNode or i==str(dupNode)+"_"+str(iteration):
+            
+              if self_pair_type=="self_loop":
+                rando = random.random()
+                if i==dupNode:
+                  if rando<r/nodeNum:
+                    rando = random.random()
+                    if rando>0.5:
+                      G.add_edge(str(dupNode)+"_"+str(iteration),str(dupNode)+"_"+str(iteration))
+                    else:
+                      G.add_edge(dupNode,dupNode)
+                
+                rando = random.random()
+                if i==str(dupNode)+"_"+str(iteration):
+                  if rando<r/nodeNum:
+                    rando = random.random()
+                    if rando>0.5:
+                      G.add_edge(str(dupNode)+"_"+str(iteration),dupNode)
+                    else:
+                      G.add_edge(dupNode,str(dupNode)+"_"+str(iteration))
+              else: 
+                raise TypeError("Cross-edge type Not yet implemented")
+            else:  
+                rando = random.random()
+                if rando<r/nodeNum:
+                  rando=random.random()
+                  if rando>0.5:
+                    G.add_edge(str(dupNode)+"_"+str(iteration),i)
+                  else:
+                    G.add_edge(dupNode,i)
+
+        for i in parentListRemoved:
+          
+          if i !=dupNode and i!=str(dupNode)+"_"+str(iteration):
+            if G.out_degree(i)!=0:  
+              rando = random.random()
+              if rando<r/nodeNum:
+                rando=random.random()
+                if rando>0.5:
+                  G.add_edge(i,str(dupNode)+"_"+str(iteration))
+                else:
+                  G.add_edge(i,dupNode)
+
+
+      elif edge_add_type=='uniform':
+        for i in childListRemoved:
+          if G.out_degree(dupNode)!=0:
+            if i ==dupNode or i==str(dupNode)+"_"+str(iteration):
+              if self_pair_type=="self_loop":
+                rando = random.random()
+                if i==dupNode:
+                  if rando<r/(2*nodeNum-G.degree(i)+3):
+                    rando = random.random()
+                    if rando>0.5:
+                      G.add_edge(str(dupNode)+"_"+str(iteration),str(dupNode)+"_"+str(iteration))
+                    else:
+                      G.add_edge(dupNode,dupNode)
+                
+                rando = random.random()
+                if i==str(dupNode)+"_"+str(iteration):
+                  if rando<r/(2*nodeNum-G.degree(i)+3):
+                    rando = random.random()
+                    if rando>0.5:
+                      G.add_edge(str(dupNode)+"_"+str(iteration),dupNode)
+                    else:
+                      G.add_edge(dupNode,str(dupNode)+"_"+str(iteration))
+              else: 
+                raise TypeError("Cross-edge type Not yet implemented")
+            else:  
+              rando = random.random()
+              if rando<r/(2*nodeNum-G.degree(i)+3):
+                rando=random.random()
+                if rando>0.5:
+                  G.add_edge(str(dupNode)+"_"+str(iteration),i)
+                else:
+                  G.add_edge(dupNode,i)
+
+        for i in parentListRemoved:
+          
+          if i !=dupNode and i!=str(dupNode)+"_"+str(iteration):
+            if G.out_degree(i)!=0: 
+              rando = random.random()
+              if rando<r/(2*nodeNum-G.degree(i)+3):
+                rando=random.random()
+                if rando>0.5:
+                  G.add_edge(i,str(dupNode)+"_"+str(iteration))
+                else:
+                  G.add_edge(i,dupNode)
+
+      elif edge_add_type=='preferential':
+        for i in childListRemoved:
+          if G.out_degree(dupNode)!=0: 
+            if i ==dupNode or i==str(dupNode)+"_"+str(iteration):
+              if self_pair_type=="self_loop":
+                rando = random.random()
+                if i==dupNode:
+                  if rando<r*G.degree(i)/(2*nodeNum-G.degree(i)+3):
+                    rando = random.random()
+                    if rando>0.5:
+                      G.add_edge(str(dupNode)+"_"+str(iteration),str(dupNode)+"_"+str(iteration))
+                    else:
+                      G.add_edge(dupNode,dupNode)
+                
+                rando = random.random()
+                if i==str(dupNode)+"_"+str(iteration):
+                  if rando<r*G.degree(i)/(2*nodeNum-G.degree(i)+3):
+                    rando = random.random()
+                    if rando>0.5:
+                      G.add_edge(str(dupNode)+"_"+str(iteration),dupNode)
+                    else:
+                      G.add_edge(dupNode,str(dupNode)+"_"+str(iteration))
+              else: 
+                raise TypeError("Cross-edge type Not yet implemented")
+            else:  
+              rando = random.random()
+              if rando<r*G.degree(i)/(2*nodeNum-G.degree(i)+3):
+                rando=random.random()
+                if rando>0.5:
+                  G.add_edge(str(dupNode)+"_"+str(iteration),i)
+                else:
+                  G.add_edge(dupNode,i)
+
+        for i in parentListRemoved:
+          
+          if i !=dupNode and i!=str(dupNode)+"_"+str(iteration):
+            if G.out_degree(i)!=0: 
+              rando = random.random()
+              if rando<r*G.degree(i)/(2*nodeNum-G.degree(i)+3):
+                rando=random.random()
+                if rando>0.5:
+                  G.add_edge(i,str(dupNode)+"_"+str(iteration))
+                else:
+                  G.add_edge(i,dupNode)
+      else:
+        raise TypeError("Edge addition type not implemented. Please choose from standard, unfirom, or preferential")
 
   return G
 
@@ -620,35 +898,23 @@ def ped_pea_graphs_from_tree(ancestor,t,r,q,constant_edge_length=0):
 def GRN_seed_graph():
   
   G=nx.DiGraph()
-  G.add_nodes_from([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24])
+  G.add_nodes_from([0,1,2,3,4,5,6,7,8])
   G.add_edge(0,1)
+  G.add_edge(1,1)
   G.add_edge(0,2)
   G.add_edge(0,3)
-  G.add_edge(0,4)
-  G.add_edge(0,9)
-  G.add_edge(0,10)
-  G.add_edge(0,11)
-  G.add_edge(0,12)
-  G.add_edge(0,13)
-  G.add_edge(0,14)
-  G.add_edge(0,15)
-  G.add_edge(0,16)
-  G.add_edge(4,5)
-  G.add_edge(4,6)
-  G.add_edge(4,7)
-  G.add_edge(8,4)
-  G.add_edge(0,8)
+  G.add_edge(3,4)
+  G.add_edge(3,5)
+  G.add_edge(6,3)
+  G.add_edge(0,6)
   G.add_edge(0,0)
-  G.add_edge(8,8)
-  G.add_edge(4,4)
-  G.add_edge(4,17)
-  G.add_edge(4,18)
-  G.add_edge(4,19)
-  G.add_edge(4,20)
-  G.add_edge(4,21)
-  G.add_edge(4,22)
-  G.add_edge(4,23)
-  G.add_edge(4,24)
+  G.add_edge(6,6)
+  G.add_edge(0,7)
+  G.add_edge(7,7)
+  G.add_edge(7,0)
+  G.add_edge(8,4)
+  G.add_edge(8,5)
+  G.add_edge(8,7)
   return G
 def GRN_seed_graph_dmc(steps,qMod,qCon):
   G=GRN_seed_graph()

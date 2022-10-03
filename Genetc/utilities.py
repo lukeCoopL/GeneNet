@@ -1,5 +1,6 @@
 #from re import M, S
 from time import time
+from xml.dom.minicompat import NodeList
 from matplotlib.pyplot import xcorr
 import networkx as nx
 import itertools
@@ -54,6 +55,52 @@ def connected_component_subgraphs(G):
     G=G.to_undirected()
     for c in nx.connected_components(G):
         yield G.subgraph(c)
+def count_all_triangles(G,node):
+  G=nx.DiGraph(G)
+  G.remove_edges_from(list(nx.selfloop_edges(G)))  
+  return ((1/2)*(nx.to_numpy_matrix(G)+np.transpose(nx.to_numpy_matrix(G)))**3)[node,node]
+
+def average_all_triangles(G):
+  G=nx.DiGraph(G)
+  G.remove_edges_from(list(nx.selfloop_edges(G)))
+  return np.mean([count_all_triangles(G,i) for i in G.nodes()])
+
+def all_triangles_clustering(G,node):
+  G=nx.DiGraph(G)
+  G.remove_edges_from(list(nx.selfloop_edges(G)))
+  return ((1/2)*(nx.to_numpy_matrix(G)+np.transpose(nx.to_numpy_matrix(G)))**3)[node,node]/(G.degree(node)*(G.degree(node)-1)-2*(nx.to_numpy_matrix(G)**2)[node,node])
+
+def reciprocal_degree(G,node):
+  G.remove_edges_from(list(nx.selfloop_edges(G)))
+  return (nx.to_numpy_matrix(G)**2)[node,node]
+
+def average_all_triangles_clustering(G):
+  G=nx.DiGraph(G)
+  G.remove_edges_from(list(nx.selfloop_edges(G)))
+  return np.mean([all_triangles_clustering(G,i) for i in G.nodes()])
+def count_FFL_triangles(G,node):
+  G=nx.DiGraph(G)
+  G.remove_edges_from(list(nx.selfloop_edges(G)))
+  return (nx.to_numpy_matrix(G)*np.transpose(nx.to_numpy_matrix(G)*nx.to_numpy_matrix(G)))[node,node]
+def average_FFL_triangles(G):
+  return np.mean([count_FFL_triangles(G,i) for i in range(len(G.nodes()))])
+def count_cycle_triangles(G,node):
+  G=nx.DiGraph(G)
+  G.remove_edges_from(list(nx.selfloop_edges(G)))
+  return ((nx.to_numpy_matrix(G))**3)[node,node]
+
+def average_cycle_triangles(G):
+  return np.mean([count_cycle_triangles(G,i) for i in G.nodes()])
+
+def cycle_triangles_clustering(G,node):
+  G=nx.DiGraph(G)
+  G.remove_edges_from(list(nx.selfloop_edges(G)))
+  return ((nx.to_numpy_matrix(G))**3)[node,node]/(G.in_degree(node)*G.out_degree(node)-(nx.to_numpy_matrix(G)**2)[node,node])
+
+def average_cycle_triangles_clustering(G):
+  G=nx.DiGraph(G)
+  G.remove_edges_from(list(nx.selfloop_edges(G)))
+  return np.mean([cycle_triangles_clustering(G,i) for i in G.nodes()])
 
 def gnp_random_graph(n, p, seed=None, directed=False):
     """Returns a $G_{n,p}$ random graph, also known as an Erdős-Rényi graph
@@ -144,22 +191,84 @@ def is_automorphic_fast(G1,G2):
   if len(set(G1.edges)^set(G2.edges))!=0:
     return False
   return True
-def is_automorphic_ancestral(G1,G2,i):
-  if set(G1.nodes())!=set(G2.nodes()):
+def ped_is_automorphic(G1,G2,i1,i2):
+  if len(set(G1.predecessors(i1))^set(G2.predecessors(i2)))!=0:
     return False
-  for k in set(G1.predecessors(i)):
-    if k not in set(G2.predecessors(i)):
-      return False
-  for k in set(G1.successors(i)):
-    if k not in set(G2.successors(i)):
-      return False
-  for k in set(G2.predecessors(i)):
-    if k not in set(G1.predecessors(i)):
-      return False
-  for k in set(G2.successors(i)):
-    if k not in set(G1.successors(i)):
-      return False
+  if len(set(G1.successors(i1))^set(G2.successors(i2)))!=0:
+    return False
   return True
+def random_induced_subgraph(G,n):
+  randomlist = random.sample(range(0, len(G.nodes)), n)
+  nodeList=[list(G.nodes)[i] for i in randomlist]
+  G_ind = nx.induced_subgraph(G,nodeList)
+  return G_ind
+def random_connected_induced_subgraph_naive(G,n):
+  G_ind = random_induced_subgraph(G,n)
+  while not nx.is_connected(nx.Graph(G_ind)):
+    G_ind = random_induced_subgraph(G,n)
+  return G_ind
+def non_uniform_random_connected_induced_subgraph(G,n):
+  rando= int(len(G.nodes) * random.random())
+  start_node = list(G.nodes)[rando]
+  G_ind = nx.Graph()
+  nodeList=[]
+  G_ind.add_node(start_node)
+  nodeList.append(start_node)
+  for j in range(0,n-1):
+    neighbors=[]
+    for k in nodeList:
+
+      neighbors = neighbors+ [i for i in list(G.predecessors(k))+list(G.successors(k)) if i not in nodeList]
+    rando= int(len(neighbors) * random.random())
+    if rando==len(neighbors):
+      raise TypeError("Starting connected component is less than "+str(n)+" nodes")
+    nodeList.append(neighbors[rando])
+  G_ind=nx.induced_subgraph(G,nodeList)
+  
+  return G_ind
+def met_hastings_connected_induced_subgraph(G,n,conv,mix):
+  initGraph=non_uniform_random_connected_induced_subgraph(G,n)
+  d_i=missing_degree_of_subgraph(G,initGraph)
+  iterr=0
+  while iterr<conv:
+    nodeList=list(initGraph.nodes)
+    
+    rando1= int(n * random.random())
+    
+    nodeList.remove(list(initGraph.nodes)[rando1])
+
+    neighbors=[]
+    for k in nodeList:
+
+        neighbors = neighbors+ [i for i in list(G.predecessors(k))+list(G.successors(k)) if i not in nodeList]
+    rando2= int(len(neighbors) * random.random())
+    if rando2==len(neighbors):
+      print(rando2)
+    nodeList.append(neighbors[rando2])
+    if nx.is_connected(nx.Graph(nx.induced_subgraph(G,nodeList))):
+      d_j=missing_degree_of_subgraph(G,nx.induced_subgraph(G,nodeList))
+      rando3=random.random()
+      if rando3<d_i/d_j:
+        initGraph=nx.induced_subgraph(G,nodeList)
+        d_i=d_j
+      #else:
+      #  nodeList.append(list(initGraph.nodes)[rando1])
+      #  nodeList.remove(neighbors[rando2])
+      iterr=iterr+1
+  return initGraph
+def degree_distribution_distance(G1,G2):
+  d1=nx.degree_histogram(G1)
+  d2=nx.degree_histogram(G2)
+  return sum([abs(d1[i]-d2[i]) for i in range(0,len(d1))])
+  #return np.sum(np.abs(d1-d2))
+def missing_degree_of_subgraph(G,G_ind):
+  
+  missing_degree=0
+  for i in G_ind.nodes():
+    missing_degree=missing_degree+G.degree(i)-G_ind.degree(i)
+  return missing_degree
+def average_degree(G):
+  return sum([d for (n, d) in nx.degree(G)]) / len(G.nodes())
 def cytoscape_graph(data, attrs=None, name="name", ident="id",value="id"):
     """
     Create a NetworkX graph from a dictionary in cytoscape JSON format.

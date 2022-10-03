@@ -14,13 +14,193 @@ from networkx.utils import py_random_state
 import random as random
 import json
 import matplotlib.pyplot as plt
+from sklearn.model_selection import permutation_test_score
 #from scipy.stats import expon as ex 
 from Genetc.utilities import *
 from Genetc.duplication import *
 from Genetc.alignment import *
 from math import comb
+
 #-----------------------------------------------------------
 #Ancestral Reconstruction
+def expected_number_of_self_loops(G,G_seed,p):
+  SL=len(list(nx.selfloop_edges(G_seed)))
+  for i in range(len(G_seed.nodes()),len(G.nodes())):
+    SL=SL+(SL/i)*(1-p)
+  return SL
+def expected_number_of_self_loops(G,G_seed,p):
+  SL=len(list(nx.selfloop_edges(G_seed)))
+  n=len(G.nodes)
+  k=len(G_seed.nodes)
+  fact1=1
+  fact2=1
+  fact3=1
+  fact4=1
+  for i in range(1,k):
+    fact1=fact1*i
+  for i in range(1,k+1):
+    fact2=fact2*(i-p)
+  for i in range(k,n):
+    SL=SL+(SL/i)*(1-p)
+  return 
+def expected_number_of_isolates(G,G_seed,p,iso_number=0):
+  SL=len(list(nx.selfloop_edges(G_seed)))
+  deg=sum([d for (n, d) in nx.degree(G_seed)]) / len(G_seed.nodes())
+  iso=len(list(nx.isolates(G_seed)))
+  degList=[G_seed.degree(i) for i in G_seed.nodes]
+  isoOld=iso
+  for i in range(len(G_seed.nodes()),len(G.nodes())+iso_number):
+    #print(range(int(np.floor(min(degList))),int(np.ceil(max(degList)))))
+    #print(list(np.histogram(degList,bins=int(np.ceil(max(degList)))-int(np.floor(min(degList))))))
+    
+    summ=0
+    for deg in degList:
+      #if 0 in degList:
+        #deg=random.choices(range(int(np.ceil(max(degList)))),weights=list(np.histogram(degList,bins=int(np.ceil(max(degList))),density=True)[0]))[0]
+      #else:
+        #deg=random.choices(range(1,int(np.ceil(max(degList)))),weights=list(np.histogram(degList,bins=int(np.ceil(max(degList)))-1,density=True)[0]))[0]
+    
+      summ=summ+2*(p/2)**deg
+    iso=iso+(1/i)*summ
+    #if iso>len([i for i in degList if i==0])+1:
+    #  degList.append(0)
+    #else:
+    if 0 in degList:
+        deg=random.choices(range(int(np.ceil(max(degList)))),weights=list(np.histogram(degList,bins=int(np.ceil(max(degList))),density=True)[0]))[0]
+    else:
+        deg=random.choices(range(1,int(np.ceil(max(degList)))),weights=list(np.histogram(degList,bins=int(np.ceil(max(degList)))-1,density=True)[0]))[0]
+    for i in range(int((1-p)*deg)):
+      ind=random.choices(range(len(degList)),weights=degList)[0]
+      degList[ind]=degList[ind]+1
+      if degList[ind]<0:
+        degList[ind]=0
+    degList.append(deg*(1-p/2))
+    ind=random.choices(range(len(degList)))[0]
+    degList[ind]=degList[ind]-(p/2)*deg
+    if degList[ind]<0:
+      degList[ind]=0
+      
+  print(degList)
+    #deg=deg*(1+(1-2*p)/(i+1))+(4*(1-p)*(SL/i))/(i+1)
+    #SL=SL+(SL/i)*(1-p)
+    
+  return iso
+def expected_number_of_isolates_test(G,G_seed,p,iso_number=0):
+  iso=len(list(nx.isolates(G_seed)))
+  ones=len([n for (n,d) in G_seed.degree() if d==1])
+  SL=len(list(nx.selfloop_edges(G_seed)))
+  deg=sum([d for (n, d) in nx.degree(G_seed)]) / len(G_seed.nodes())
+  effDeg=deg
+  realDeg=deg
+  print(deg)
+  numNodes=int(len(G_seed.nodes())-iso)
+  counter=numNodes
+  while counter<len(G.nodes())+iso_number:
+    counter=counter+1
+    #prevNumNodes=numNodes
+    realDeg=realDeg*(1+(1-2*p)/(counter))+(2*(1-p)*(SL/counter-1))/(counter)
+    isoProb=iso/(counter)+((counter-iso-SL-ones)/counter)*(p/2)**effDeg+ones/counter*(p/2)
+    
+    rando=random.random()
+    if rando<isoProb:
+      iso=iso+1
+    #else:
+    #  numNodes=numNodes+1
+    
+    #effDeg=effDeg*(1+(1-2*p)/(numNodes))+(2*(1-p)*(SL/prevNumNodes))/(numNodes)
+    SL=SL+(SL/counter)*(1-p)
+  return iso
+def FFL_clustering_recurrence_no_selfloop_no_r(G,G_seed,p):
+  clust=average_FFL_triangles(G_seed)
+  for i in range(len(G_seed.nodes()),len(G.nodes())):
+    clust=(1/(i+1))*(i*clust+(3*(1-p/2)**2)*clust-3*(p-p**2/4)*clust)
+  return clust
+def degree_recurrence(G,G_seed,p,r,iso_number=0):
+  iso=len(list(nx.isolates(G_seed)))
+  SL=len(list(nx.selfloop_edges(G_seed)))
+  deg=sum([d for (n, d) in nx.degree(G_seed)]) / len(G_seed.nodes())
+  print(deg)
+  for i in range(len(G_seed.nodes()),len(G.nodes())+iso_number):
+    summ=0
+    
+    deg=deg*(1+(1-2*p)/(i+1)-(2*r)/(i*(i+1)))+(4*(1-p)*(SL/i))/(i+1)+(2*r)/(i+1)
+    SL=SL+(SL/i)*(1-p)
+  
+  return ((i+1)*deg)/(i+1-iso_number)
+def degree_recurrence_test(G,G_seed,p,iso_number=0):
+  iso=len(list(nx.isolates(G_seed)))
+  SL=len(list(nx.selfloop_edges(G_seed)))
+  deg=sum([d for (n, d) in nx.degree(G_seed)]) / len(G_seed.nodes())
+  effDeg=deg
+  realDeg=deg
+  print(deg)
+  numNodes=int(len(G_seed.nodes())-iso)
+  counter=numNodes
+  while numNodes<len(G.nodes())+iso_number:
+    counter=counter+1
+    prevNumNodes=numNodes
+    realDeg=realDeg*(1+(1-2*p)/(counter))+(2*(1-p)*(SL/counter-1))/(counter)
+    isoProb=iso/(counter)+((counter-iso-SL)/counter)*(p/2)**effDeg
+    
+    rando=random.random()
+    if rando<isoProb:
+      iso=iso+1
+    else:
+      numNodes=numNodes+1
+    
+    effDeg=effDeg*(1+(1-2*p)/(numNodes))+(2*(1-p)*(SL/prevNumNodes))/(numNodes)
+    SL=SL+(SL/counter)*(1-p)
+    if numNodes<1:
+      break
+    #if int(numNodes)%500==0:
+    #  print(numNodes)
+    
+  
+  return effDeg
+
+def list_based_expected_degree(G,G_seed,p):
+  degList=[G_seed.degree[i] for i in G_seed.nodes()]
+  step=len(G_seed.nodes)
+  while step<len(G.nodes()):
+    picked=random.sample(degList,k=1)
+    picked=picked[0]
+    while picked==0:
+      picked=random.sample(degList,k=1)
+      picked=picked[0]
+    
+    delNumber=int(p*picked)
+    pickDex=degList.index(picked)
+    for i in range(delNumber):
+      rando=int(random.random()*len(degList))
+      while rando==pickDex:
+        rando=int(random.random()*len(degList))
+        degList[rando]=degList[rando]-1
+    
+    degList[pickDex]=degList[pickDex]-int(delNumber/2)
+    degList.append(int(delNumber/2))
+    step=step+1
+  
+  return np.mean(degList)
+
+def fit_p_degree_recurrence(G,G_seed,eps,r,iso_number=0):
+  trueDeg=sum([d for (n, d) in nx.degree(G)]) / len(G.nodes())
+  degMax=degree_recurrence(G,G_seed,0,r,iso_number=int(0*iso_number))
+  degMin=degree_recurrence(G,G_seed,1,r,iso_number=int(1*iso_number))
+  print(degMin,degMax,trueDeg)
+  if degMin>trueDeg or degMax<trueDeg:
+    raise ValueError('Degree recurrence does not fit')
+  pMin=1
+
+  pMax=0
+  while pMin-pMax>eps:
+    pDash=(pMin+pMax)/2
+    deg=degree_recurrence(G,G_seed,pDash,r,iso_number=int(pDash*iso_number))
+    if deg<trueDeg:
+      pMin=pDash
+    else:
+      pMax=pDash
+  return pMin
+
 def adj_distance(G1,G2):
   if len(G1.nodes)!=len(G2.nodes):
     raise ValueError('Graphs are unequal size')
@@ -169,19 +349,13 @@ def check_self_edge_condition(G,GPrev,i,j):
         #print("t")
         return 0
 
-def ancestral_likelihood_of_anchor_PD(G,GPrev,i,j,q,divide_by_n=True,NK=False,timesTwo=True):
-  
-  if NK==False:
-    if check_self_edge_condition(G,GPrev,i,j)==0:
-      if j=="8_1" and i==1:
-        print(i,j,"check self edge returns 0")
-      return 0
-    if check_faulty_edges(G,GPrev,i,j)==0:
-      if j=="8_1" and i==1:
-        print("check faulty edges returns 0")
-      return 0
+def ancestral_likelihood_of_anchor_PD(G,GPrev,i,j,q,divide_by_n=True,NK=False,timesTwo=True,non_specific=False):
+  if check_self_edge_condition(G,GPrev,i,j)==0:    
+    return 0
+  if check_faulty_edges(G,GPrev,i,j)==0:
+    return 0
     
-    ''' 
+  ''' 
     for k in set(list(G.predecessors(j))):
       if k==j:
         if i not in set(list(GPrev.predecessors(i))):
@@ -197,7 +371,7 @@ def ancestral_likelihood_of_anchor_PD(G,GPrev,i,j,q,divide_by_n=True,NK=False,ti
       else:
         if k not in set(list(GPrev.successors(i))):
           return 0
-    '''
+  '''
     
 
     
@@ -211,7 +385,7 @@ def ancestral_likelihood_of_anchor_PD(G,GPrev,i,j,q,divide_by_n=True,NK=False,ti
       if k[0]==i and k[1]!= i:
         if (j,k[1]) not in set(G.edges):
           return 0
-'''
+  '''
   prod=1
 
   numNodes=len(list(G.nodes))
@@ -244,9 +418,7 @@ def ancestral_likelihood_of_anchor_PD(G,GPrev,i,j,q,divide_by_n=True,NK=False,ti
     elif (j,j) in set(G.edges):
         symmdiffNeighbours.append(i)
     else:
-      #print("t")
-      if j=="8_1" and i==1:
-        print("self edge not in G")
+      
       return 0
     if (i,j) in set(G.edges):
       if (j,i) in set(G.edges):
@@ -256,9 +428,7 @@ def ancestral_likelihood_of_anchor_PD(G,GPrev,i,j,q,divide_by_n=True,NK=False,ti
     elif (j,i) in set(G.edges):
         symmdiffNeighbours.append(j)
     else:
-      #print("t")
-      if j=="8_1" and i==1:
-        print("self edge not in G")
+      
       return 0
   ###Pair the cross edge with self edge
   '''  if (i,i) in list(G.edges):
@@ -284,13 +454,15 @@ def ancestral_likelihood_of_anchor_PD(G,GPrev,i,j,q,divide_by_n=True,NK=False,ti
   prod=prod*(q/2)**symmNo
   if divide_by_n:
     prod=prod/(numNodes-1)
-  if timesTwo ==True and NK==False and symmNo!=0:
+  if non_specific==False and timesTwo ==True and NK==False and symmNo!=0:
     prod=prod*2
-  
+  if non_specific==True:
+    prod=prod*2**symmNo*math.comb(symmNo+intersectNo,symmNo)
   #print("i",i,"j",j,"prod",prod,"q",q,"intersectNo",intersectNo,"symmNo",symmNo,"numNodes",numNodes)
   return prod
 
-def most_likely_previous_graph_fast(G,q,divide_by_n=True,timesTwo=True,auto=True):
+
+def most_likely_previous_graph_fast(G,q,divide_by_n=True,timesTwo=True,auto=True,non_specific=False):
   prevVec=dict()
   autoVecPair=dict()
   autoVecGraph=dict()
@@ -319,7 +491,7 @@ def most_likely_previous_graph_fast(G,q,divide_by_n=True,timesTwo=True,auto=True
         
         
         if ind!=jnd:
-          baseLikelihood[j][i]=ancestral_likelihood_of_anchor_PD(G,GPrev,i,j,q,divide_by_n,timesTwo=timesTwo)
+          baseLikelihood[j][i]=ancestral_likelihood_of_anchor_PD(G,GPrev,i,j,q,divide_by_n,timesTwo=timesTwo,non_specific=non_specific)
           #ancestral_likelihood_of_graph_PD(G,GPrev,i,j,q,divide_by_n,timesTwo=timesTwo)
           #baseLikelihood[i][j]=baseLikelihood[j][i]
           likelihood[j][i]=baseLikelihood[j][i]
@@ -338,7 +510,7 @@ def most_likely_previous_graph_fast(G,q,divide_by_n=True,timesTwo=True,auto=True
           #for jt in [i,j]:
             
             for knd,k in enumerate(autoVecGraph[j].keys()):
-                if done ==False and is_automorphic_fast(autoVecGraph[j][k][0],GPrev):
+                if done ==False and ped_is_automorphic(autoVecGraph[j][k][0],GPrev,k,i):
                   
                   #print("graph where",j,"merged into",i,"already found in",j,"merged into ",k)
                   autoVecGraph[j][k].append(GPrev)
@@ -408,6 +580,70 @@ def most_likely_previous_graph_fast(G,q,divide_by_n=True,timesTwo=True,auto=True
             likelihood[j][k]=likelihood[j][k]+baseLikelihood[j][l]
             likelihood[j][l]=likelihood[j][l]+baseLikelihood[j][k]'''
   return likelihood
+
+def most_likely_previous_graph_faster(G,q,divide_by_n=True,timesTwo=True,non_specific=False):
+  prevVec=dict()
+  autoVecPair=dict()
+  autoVecGraph=dict()
+  likelihood=dict()
+  baseLikelihood=dict()
+  autoVecSum=dict()
+  first=True
+  for j in G.nodes():
+    prevVec[j]=dict()
+    autoVecPair[j]=dict()
+    autoVecGraph[j]=dict()
+    likelihood[j]=dict()
+    baseLikelihood[j]=dict()
+    autoVecSum[j]=dict()
+
+  
+  for jnd, j in enumerate(G.nodes):
+    for ind,i in enumerate(list(G.nodes)):
+      if i!=j:
+        done=False
+        GPrev=node_merger(G,i,j,self_loops=True)
+        prevVec[j][i]=GPrev
+        if ind!=jnd:
+          baseLikelihood[j][i]=ancestral_likelihood_of_anchor_PD(G,GPrev,i,j,q,divide_by_n,timesTwo=timesTwo,non_specific=non_specific)
+         
+        if first==True:
+          autoVecPair[j][i]=[]
+          autoVecGraph[j][i]=[]
+          autoVecPair[j][i].append(i)
+          autoVecSum[j][i]=baseLikelihood[j][i]
+        
+          autoVecGraph[j][i].append(GPrev)
+         
+          
+          first=False
+        else:
+          for knd,k in enumerate(autoVecGraph[j].keys()):
+            if done ==False and is_automorphic_fast(autoVecGraph[j][k][0],GPrev):
+                  
+              autoVecGraph[j][k].append(GPrev)
+              
+              autoVecPair[j][k].append(i)
+              autoVecSum[j][k]=autoVecSum[j][k]+baseLikelihood[j][i]
+                  
+              done=True
+           
+            if done==False:
+
+              autoVecPair[j][i]=[]
+              autoVecGraph[j][i]=[]
+              autoVecPair[j][i].append(i)
+              autoVecSum[j][i]=baseLikelihood[j][i]
+ 
+              autoVecGraph[j][i].append(GPrev)
+
+  for j in enumerate(G.nodes):
+    for k in enumerate(autoVecPair[j].keys()):
+      for l in enumerate(autoVecPair[j][k]):
+        likelihood[j][l]=autoVecSum[j][k]
+  
+  return likelihood
+
 #------------------------------------------------------------------------------------
 
 def ancestral_likelihood_of_graph_PD(G,GPrev,i,j,q,divide_by_n=True,timesTwo=True):
@@ -984,7 +1220,31 @@ def dmc_anc_rec(G1,G2,qMod,qCon):
   gAncestral.add_nodes_from(V0)
   gAncestral.add_edges_from(E0)
   return gAncestral
+def pairs_will_give_automorphic_graph(G,i,j,k,l,self_loops=True):
+  
+  anchorNeighboursIn1 = list(G.predecessors(i))
+  anchorNeighboursOut1=list(G.successors(i))
+  duplicateNeighboursIn1=list(G.predecessors(j))
+  duplicateNeighboursOut1=list(G.successors(j))
 
+  s = set(anchorNeighboursIn1)
+  anchorNeighboursIn1 = [(x,i) for x in duplicateNeighboursIn1 if x not in s and x!=j]
+
+  s = set(anchorNeighboursOut1)
+  anchorNeighboursOut1 = [(i,x) for x in duplicateNeighboursOut1 if x not in s and x!=j]
+ 
+  anchorNeighboursIn2 = list(G.predecessors(k))
+  anchorNeighboursOut2=list(G.successors(k))
+  duplicateNeighboursIn2=list(G.predecessors(l))
+  duplicateNeighboursOut2=list(G.successors(l))
+
+  s = set(anchorNeighboursIn2)
+  anchorNeighboursIn2 = [(x,k) for x in duplicateNeighboursIn2 if x not in s and x!=l]
+
+  s = set(anchorNeighboursOut2)
+  anchorNeighboursOut2 = [(k,x) for x in duplicateNeighboursOut2 if x not in s and x!=l]
+     
+  return len(set(anchorNeighboursIn1)^set(anchorNeighboursIn2))==0 and len(set(anchorNeighboursOut1)^set(anchorNeighboursOut2))==0
 def node_merger(G,i,j,self_loops=True):
   
   #G_anc=copy.deepcopy(G)
