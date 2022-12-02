@@ -73,7 +73,23 @@ def all_triangles_clustering(G,node):
 def reciprocal_degree(G,node):
   G.remove_edges_from(list(nx.selfloop_edges(G)))
   return (nx.to_numpy_matrix(G)**2)[node,node]
+def proportion_of_zero_out_degree_nodes(G):
+  return len([i for i in G.nodes() if G.out_degree(i)==0])/len(G.nodes())
+def max_betweenness_centrality(G):
+  G=nx.DiGraph(G)
+  G.remove_edges_from(list(nx.selfloop_edges(G)))
+  return max(nx.betweenness_centrality(G).values())
+  
+  
+def max_eigenvector_centrality(G):
+  G=nx.DiGraph(G)
+  G.remove_edges_from(list(nx.selfloop_edges(G)))
+  return max(nx.eigenvector_centrality(G).values())
 
+def fiedler_value(G):
+  G=nx.DiGraph(G)
+  G.remove_edges_from(list(nx.selfloop_edges(G)))
+  return nx.laplacian_spectrum(G)[1]
 def average_all_triangles_clustering(G):
   G=nx.DiGraph(G)
   G.remove_edges_from(list(nx.selfloop_edges(G)))
@@ -221,7 +237,7 @@ def non_uniform_random_connected_induced_subgraph(G,n):
       neighbors = neighbors+ [i for i in list(G.predecessors(k))+list(G.successors(k)) if i not in nodeList]
     rando= int(len(neighbors) * random.random())
     if rando==len(neighbors):
-      raise TypeError("Starting connected component is less than "+str(n)+" nodes")
+      return non_uniform_random_connected_induced_subgraph(G,n)
     nodeList.append(neighbors[rando])
   G_ind=nx.induced_subgraph(G,nodeList)
   
@@ -620,6 +636,17 @@ def graph_intersection_union(G1,G2):
     if i not in G_intersect.edges():
       G_intersect.add_edge(i[0],i[1])
   return G_intersect
+
+def proportion_of_nodes_with_selfloops(G):
+  
+  return len([(i,j) for (i,j) in G.edges() if i==j])/len(G.nodes())
+def average_degree(G):
+  return sum([G.degree(i) for i in G.nodes()])/len(G.nodes())
+def average_outdegree(G):
+  return sum([G.out_degree(i) for i in G.nodes()])/len(G.nodes())
+def average_indegree(G):
+  return sum([G.in_degree(i) for i in G.nodes()])/len(G.nodes())
+
 def null_distribution_s3_score(G_random,G_base,resolution=100):
     scoreVec=[]
     edges=len(G_random.edges)
@@ -842,5 +869,3 @@ def pair_loglog_degree_sequence_plot(G1,G2):
     plt.title('')
     plt.xlabel('Degree')
     plt.ylabel('Count')
-
-   

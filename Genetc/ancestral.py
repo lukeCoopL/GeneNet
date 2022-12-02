@@ -14,7 +14,7 @@ from networkx.utils import py_random_state
 import random as random
 import json
 import matplotlib.pyplot as plt
-from sklearn.model_selection import permutation_test_score
+
 #from scipy.stats import expon as ex 
 from Genetc.utilities import *
 from Genetc.duplication import *
