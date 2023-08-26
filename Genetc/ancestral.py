@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 from Genetc.utilities import *
 from Genetc.duplication import *
 from Genetc.alignment import *
-from math import comb
+#from math import comb
 
 #-----------------------------------------------------------
 #Ancestral Reconstruction
@@ -3368,3 +3368,63 @@ def to_divide_by_n_or_to_not_divide_by_n(direc="test_datasets_ancestral/varying_
 #def varying_q_ancestral(r=1,direc="test_datasets_ancestral/regulatory_test_ped_pea/"):
 
 #def with_or_without_scoring_ancestral(r=1,q=0.4,direc="test_datasets_ancestral/regulatory_test_ped_pea/"):
+
+def find_expected_number_of_deletions_and_additions(G,r,q,i,j):
+  iOut=set(list(G.neighbors(i,mode="out")))
+  jOut=set(list(G.neighbors(j,mode="out")))
+  iIn=set(list(G.neighbors(i,mode="in")))
+  jIn=set(list(G.neighbors(j,mode="in")))
+  print(iOut,jOut,iIn,jIn)
+  out_=iOut&jOut
+  in_=iIn&jIn
+  kSymm=0
+  n=G.vcount()
+  oneSymmCount=False
+  kInt=len(out_)+len(in_)
+  if i in out_:
+     kInt-=1
+  if j in out_:
+    kInt-=1
+  if j in in_:
+     kInt-=1
+  if i in in_:
+    kInt-=1
+  if i in jOut or j in iOut:
+    if i in jOut and j in iOut:
+      kInt+=1
+    else:
+       oneSymmCount=True
+       kSymm+=1
+  if i in iIn or j in jIn:
+    if i in iIn and j in jIn:
+      kInt+=1
+    else:
+       oneSymmCount=True
+       kSymm+=1 
+  
+  for k in iOut:
+     if k not in jOut and k!=j and k!=i:
+       kSymm+=1
+  for k in jOut:
+      if k not in iOut and k!=j and k!=i:
+        kSymm+=1
+  for k in iIn:
+      if k not in jIn and k!=j and k!=i:
+        kSymm+=1
+  for k in jIn:
+      if k not in iIn and k!=j and k!=i:
+        kSymm+=1
+  print("kint",kInt)
+  print("ksymm",kSymm)
+  print("num non edges",2*(n-1)-kInt-kSymm-1)
+  if oneSymmCount:
+    print("num pos graphs",2**(kSymm-1))
+  else:
+    print("num pos graphs",2**kSymm)
+  kNon=2*(n-1)-kInt-kSymm-1
+  print([(1-q)**kInt*(1-r/(n-1))**kNon*(r/(2*(n-1)))**i*(q/2)**(kSymm-i) for i in range(kSymm+1)])
+  return max([(1-q)**kInt*(1-r/(n-1))**kNon*(r/(2*(n-1)))**i*(q/2)**(kSymm-i) for i in range(kSymm+1)]),np.argmax([(1-q)**kInt*(1-r/(n-1))**kNon*(r/(2*(n-1)))**i*(q/2)**(kSymm-i) for i in range(kSymm+1)])
+  
+  
+
+    
